@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import AddCandidate from "./components/AddCandidate";
 import Voting from "./components/Voting";
 import { useAccount, useContract, useSigner } from "wagmi";
@@ -8,6 +8,8 @@ import { abi, votingContractAddress } from "./constants";
 function App() {
   const [screen, setScreen] = useState("home");
   const { address } = useAccount();
+  const [candidates, setCandidates] = useState([]);
+  const [totalVotes, setTotalVotes] = useState(0);
 
   const { data: signer } = useSigner();
   const contract = useContract({
@@ -16,9 +18,9 @@ function App() {
     signerOrProvider: signer,
   });
 
-  const addCandidate = async (name, party, imageUri) => {
+  const addCandidate = async (name, party, imageURI) => {
     try {
-      const tx = await contract.addCandidate(name, party, imageUri);
+      const tx = await contract.addCandidate(name, party, imageURI);
       await tx.wait();
       console.log(tx);
       console.log("Candidate Added");
@@ -38,17 +40,55 @@ function App() {
     }
   };
 
+  const getCandidates = async () => {
+    try {
+      const count = await contract.candidateCount();
+      console.log("Candidate Count ", count.toString());
+      let candidatesArr = [];
+      for (let i = 1; i <= count; i++) {
+        const candidate = await contract.candidates(i);
+        const candidateObj = {
+          name: candidate[0],
+          party: candidate[1],
+          imageURI: candidate[2],
+        }
+        candidatesArr.push(candidateObj);
+      }
+      setCandidates(candidatesArr);
+    } catch (err) {
+      console.log(err);
+    }
+  };
+
+  const getTotalVotes = async () => {
+    try {
+      const count = await contract.totalVotes()
+      console.log("Total Votes ", count.toString())
+      setTotalVotes(count.toString())
+    } catch (err) {
+      console.log(err)
+    }
+  }
+
   const RenderScreen = () => {
     return (
       <div className="flex flex-col gap-4 items-center justify-center h-96">
         {screen === "addCandidate" ? (
           <AddCandidate setScreen={setScreen} addCandidate={addCandidate} />
         ) : (
-          <Voting setScreen={setScreen} vote={vote} />
+          <Voting setScreen={setScreen} vote={vote} candidates={candidates} />
         )}
       </div>
     );
   };
+
+  useEffect(() => {
+    if (contract) {
+      getCandidates();
+      getTotalVotes();
+    }
+  }, [contract]);
+  console.log(candidates);
 
   return (
     <div className="h-screen overflow-hidden bg-black text-white">
